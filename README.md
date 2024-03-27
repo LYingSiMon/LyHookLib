@@ -1,13 +1,5 @@
-# HookLib²
-## The Win32 lightweight functions interception library
-### ✔ Advantages:
-* Written on pure C
-* Extremely lightweight
-* Based on the fastest and lightweight [Zydis](https://github.com/zyantific/zydis) disassembler
-* Uses only NativeAPI functions
-* Has no other dependencies
-* Kernelmode support
-* Supports instructions relocation and thread's contexts fixup
+# LyHookLib
+This is a kernel hook library developed based on HookLib: (https://github.com/HoShiMin/HookLib) , aimed at solving some of its own problems. As the author of HookLib is no longer updating, I hope to improve it through my own efforts.
 
 ### 📰 What's new in the 2nd Gen:
 * The HookLib was completely rewritten
