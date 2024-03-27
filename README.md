@@ -17,6 +17,7 @@ typedef struct
 } PushRet;
 ```
 
-### To do:Fix Hook failure issue caused by API header having relative addresses
+### To do:
+1.Fix Hook failure issue caused by API header having relative addresses
 like this:https://github.com/HoShiMin/HookLib/issues/23
 
