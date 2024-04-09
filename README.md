@@ -18,7 +18,7 @@ typedef struct
 ```
 
 ### Support relative addresses:
-1.mov, like this:
+1.mov reg,[address]
 ```
 nt!NtSetContextThread:
 fffff806`2e0ca340 4c8bdc          mov     r11,rsp
