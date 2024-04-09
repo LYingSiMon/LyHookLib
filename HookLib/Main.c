@@ -65,11 +65,24 @@ HANDLE NTAPI NtUserQueryWindow_Hook(
     _In_ HANDLE hWnd,
     _In_ WINDOWINFOCLASS WindowInfo)
 {
-    DbgPrintEx(0, 0, "[lysm][%s] \n", __FUNCTION__);
+    DbgPrintEx(0, 0, "[LyHook][%s] \n", __FUNCTION__);
 
     HANDLE ret = NtUserQueryWindow_Orig(hWnd, WindowInfo);
 
     return ret;
+}
+
+typedef NTSTATUS(NTAPI* P_NtSetContextThread)(
+    IN HANDLE ThreadHandle,
+    IN PCONTEXT Context);
+P_NtSetContextThread NtSetContextThread_Orig = 0;
+NTSTATUS NTAPI NtSetContextThread_Hook(
+    IN HANDLE ThreadHandle,
+    IN PCONTEXT Context)
+{
+    DbgPrintEx(0, 0, "[LyHook][%s] \n", __FUNCTION__);
+
+    return NtSetContextThread_Orig(ThreadHandle, Context);
 }
 
 VOID FindProcessByName(PCHAR ProcessName, ULONG_PTR OutArray[], ULONG Size)
@@ -133,24 +146,36 @@ VOID DetachProcess()
 
 VOID UnInitHook()
 {
-    if (NtCreateFile_Orig)
-        unhook(NtCreateFile_Orig);
+    __debugbreak();
+
+    //if (NtCreateFile_Orig)
+    //    lyunhook(NtCreateFile_Orig);
 
     AttachProcess("explorer.exe");
     if (NtUserQueryWindow_Orig)
-        unhook(NtUserQueryWindow_Orig);
+        lyunhook(NtUserQueryWindow_Orig);
     DetachProcess();
+
+    //if (NtSetContextThread_Orig)
+    //    lyunhook(NtSetContextThread_Orig);
 }
 
 VOID InitHook()
 {
-    PVOID pNtCreateFile = (PVOID)0xfffff80646e4f7e0;
-    hook(pNtCreateFile, NtCreateFile_Hook, (PVOID*)&NtCreateFile_Orig);
+    __debugbreak();
+
+    //PVOID pNtCreateFile = (PVOID)0xfffff8062de4f7e0;
+    //lyhook(pNtCreateFile, NtCreateFile_Hook, (PVOID*)&NtCreateFile_Orig);
 
     AttachProcess("explorer.exe");
-    PVOID pNtUserQueryWindow = (PVOID)0xffff87637f4b17b0;
-    hook(pNtUserQueryWindow, NtUserQueryWindow_Hook, (PVOID*)&NtUserQueryWindow_Orig);
+    PVOID pNtUserQueryWindow = (PVOID)0xffffb5e0b64b17b0;
+    lyhook(pNtUserQueryWindow, NtUserQueryWindow_Hook, (PVOID*)&NtUserQueryWindow_Orig);
     DetachProcess();
+
+    //PVOID pNtSetContextThread = (PVOID)0xfffff80107cca340;
+    //lyhook(pNtSetContextThread, NtSetContextThread_Hook, (PVOID*)&NtSetContextThread_Orig);
+
+    __debugbreak();
 }
 
 NTSTATUS DriverUnload(IN PDRIVER_OBJECT DriverObject)

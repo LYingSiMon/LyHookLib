@@ -20,6 +20,10 @@ typedef struct
     void* original; // unhook() makes it nullptr after successful unhook and keeps unchanged otherwise
 } Unhook;
 
+#if LY_ADD
+hooklib_export void lyhook(void* fn, const void* handler, void** original);
+hooklib_export size_t lyunhook(void* original);
+#endif
 hooklib_export void hook(void* fn, const void* handler, void** original);
 hooklib_export size_t multihook(const Hook* hooks, size_t count);
 

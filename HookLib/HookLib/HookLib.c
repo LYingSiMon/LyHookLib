@@ -805,6 +805,22 @@ typedef struct
     unsigned char affectedBytes;
     unsigned char indexInPage;
 } HookData;
+#if LY_ADD
+typedef struct
+{
+    unsigned char beginning[48];
+    unsigned char original_unhook[48];
+    unsigned char original_call[48];
+    void* fn;
+    union
+    {
+        LongJump64 x64;
+        LongJump32 x32;
+    } intermediate;
+    unsigned char affectedBytes;
+    unsigned char indexInPage;
+} LyHookData;
+#endif
 
 #if _KERNEL_MODE
 typedef unsigned long long Magic;
@@ -1041,7 +1057,15 @@ static HookPage* releaseHookCell(HookData* data)
     memset(data, 0, sizeof(*data));
     return page;
 }
-
+#if LY_ADD
+static HookPage* lyreleaseHookCell(LyHookData* data)
+{
+    HookPage* page = (HookPage*)((unsigned char*)data - offsetof(HookPage, cells[data->indexInPage]));
+    page->header.freeBitmap |= (1ull << data->indexInPage);
+    memset(data, 0, sizeof(*data));
+    return page;
+}
+#endif
 
 
 
@@ -1709,6 +1733,7 @@ typedef enum
 static unsigned char relocateBeginning(Arch arch, const void* from, void* to, unsigned int bytesToRelocate)
 {
     ZydisDecoder decoder;
+
     if (arch == x64)
     {
         ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
@@ -1766,7 +1791,148 @@ static unsigned char relocateBeginning(Arch arch, const void* from, void* to, un
 
     return relocatedBytes;
 }
+#if LY_ADD
+static unsigned char lyrelocateBeginning(Arch arch, const void* from, void* to, unsigned int bytesToRelocate, unsigned int* recodeSize)
+{
+    if (!recodeSize)
+    {
+        return 0;
+    }
+    else
+    {
+        *recodeSize = 0;
+    }
 
+    ZyanStatus ZyStatus = 0;
+    ZydisDecoderContext ctx = { 0 };
+    ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
+    ZydisDecoder decoder;
+
+    if (arch == x64)
+    {
+        ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
+    }
+    else
+    {
+        ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LEGACY_32, ZYDIS_STACK_WIDTH_32);
+    }
+
+    unsigned char relocatedBytes = 0;
+
+    const unsigned char* srcInstr = (const unsigned char*)from;
+    ZydisDecodedInstruction instr;
+    while (ZYAN_SUCCESS(ZydisDecoderDecodeInstruction(&decoder, &ctx, srcInstr, 16, &instr)))
+    {
+        unsigned char* const destInstr = (unsigned char*)to + (srcInstr - (const unsigned char*)from);
+        memcpy(destInstr, srcInstr, instr.length);
+
+        if (instr.attributes & ZYDIS_ATTRIB_IS_RELATIVE)
+        {
+            const ssize_t direction = delta(srcInstr, destInstr);
+            const size_t length = direction >= 0 ? ((size_t)direction) : ((size_t)-direction);
+
+            if (instr.raw.disp.offset)
+            {
+                if (!relocatable(instr.raw.disp.size, length))
+                {
+                    ZyStatus = ZydisDecoderDecodeOperands(&decoder, &ctx, &instr, operands, instr.operand_count_visible);
+                    if (!ZYAN_SUCCESS(ZyStatus))
+                    {
+                        return 0;
+                    }
+
+                    // 1. 如果是 mov reg, [address]
+
+                    if (instr.mnemonic == ZYDIS_MNEMONIC_MOV)
+                    {
+                        if (operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER && operands[1].type == ZYDIS_OPERAND_TYPE_MEMORY)
+                        {
+                            // 1.1 删除 void* to 中的指令
+
+                            memset(destInstr, 0, instr.length);
+
+                            // 1.2 修改指令为 mov reg, address; mov reg, [reg]
+
+                            ZydisEncoderRequest req1 = { 0 };
+                            req1.mnemonic = ZYDIS_MNEMONIC_MOV;
+                            req1.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+                            req1.operand_count = 2;
+                            req1.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+                            req1.operands[0].reg.value = operands[0].reg.value;
+                            req1.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+                            req1.operands[1].imm.u = (ULONG_PTR)srcInstr + operands[1].mem.disp.value + instr.length;
+
+                            ZyanU8 en_ins1[ZYDIS_MAX_INSTRUCTION_LENGTH];
+                            ZyanUSize en_ins_len1 = sizeof(en_ins1);
+                            if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req1, en_ins1, &en_ins_len1)))
+                            {
+                                return 0;
+                            }
+
+                            ZydisEncoderRequest req2 = { 0 };
+                            req2.mnemonic = ZYDIS_MNEMONIC_MOV;
+                            req2.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+                            req2.operand_count = 2;
+                            req2.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+                            req2.operands[0].reg.value = operands[0].reg.value;
+                            req2.operands[1].type = ZYDIS_OPERAND_TYPE_MEMORY;
+                            req2.operands[1].mem.base = ZYDIS_REGISTER_RAX;
+                            req2.operands[1].mem.index = ZYDIS_REGISTER_NONE;
+                            req2.operands[1].mem.scale = 0;
+                            req2.operands[1].mem.displacement = 0;
+                            req2.operands[1].mem.size = sizeof(ULONG_PTR);
+
+                            ZyanU8 en_ins2[ZYDIS_MAX_INSTRUCTION_LENGTH];
+                            ZyanUSize en_ins_len2 = sizeof(en_ins2);
+                            if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req2, en_ins2, &en_ins_len2)))
+                            {
+                                return 0;
+                            }
+
+                            memcpy(destInstr, en_ins1, en_ins_len1);
+                            memcpy(destInstr + en_ins_len1, en_ins2, en_ins_len2);
+
+                            srcInstr += instr.length;
+                            relocatedBytes += instr.length;
+                            *recodeSize += (unsigned char)(en_ins_len1 + en_ins_len2);
+                            if (relocatedBytes >= bytesToRelocate)
+                            {
+                                break;
+                            }
+                            continue;
+                        }
+                    }
+                }
+
+                relocate(destInstr + instr.raw.disp.offset, direction, instr.raw.disp.size);
+            }
+
+            for (unsigned char i = 0; i < 2; ++i)
+            {
+                if (instr.raw.imm[i].offset && instr.raw.imm[i].is_relative)
+                {
+                    if (!relocatable(instr.raw.imm[i].size, length))
+                    {
+                        return 0; // It is impossible to relocate this instruction
+                    }
+
+                    relocate(destInstr + instr.raw.imm[i].offset, direction, instr.raw.imm[i].size);
+                }
+            }
+        }
+
+        srcInstr += instr.length;
+        relocatedBytes += instr.length;
+        *recodeSize += instr.length;
+        if (relocatedBytes >= bytesToRelocate)
+        {
+            break;
+        }
+    }
+
+    return relocatedBytes;
+}
+#endif
 
 static bool writeToUser(void* const dest, const void* const src, unsigned int size)
 {
@@ -1849,8 +2015,7 @@ static bool applyHook(const Arch arch, HookData* const hook, void* const fn, con
         // Absolute jump:
         if (arch == x64)
         {
-            //const unsigned char relocatedBytes = relocateBeginning(arch, fn, hook->beginning, sizeof(LongJump64));
-            const unsigned char relocatedBytes = relocateBeginning(arch, fn, hook->beginning, sizeof(PushRet));
+            const unsigned char relocatedBytes = relocateBeginning(arch, fn, hook->beginning, sizeof(LongJump64));
             if (!relocatedBytes)
             {
                 return false;
@@ -1866,8 +2031,7 @@ static bool applyHook(const Arch arch, HookData* const hook, void* const fn, con
             *original = hook->beginning;
             _mm_sfence();
 
-            //const LongJump64 jump = makeLongJump64(handler);
-            const PushRet jump = makePushRet(handler);
+            const LongJump64 jump = makeLongJump64(handler);
             const bool status = writeToReadonly(fn, &jump, sizeof(jump));
             if (!status)
             {
@@ -1969,6 +2133,46 @@ static bool applyHook(const Arch arch, HookData* const hook, void* const fn, con
 
     return true;
 }
+#if LY_ADD
+static bool lyapplyHook(const Arch arch, LyHookData* const hook, void* const fn, const void* const handler, void** original)
+{
+    __debugbreak();
+
+    if (!hook || !fn || !original)
+    {
+        return false;
+    }
+
+    hook->fn = fn;
+
+    unsigned int recodeSize = 0;
+    const unsigned char relocatedBytes = lyrelocateBeginning(arch, fn, hook->beginning, sizeof(PushRet), &recodeSize);
+    if (!relocatedBytes || !recodeSize)
+    {
+        return false;
+    }
+
+    memcpy(hook->original_unhook, fn, relocatedBytes);
+
+    const void* const beginningContinuation = (const unsigned char*)fn + relocatedBytes;
+    writeJumpToContinuation(x64, &hook->beginning[recodeSize], beginningContinuation);
+    memcpy(hook->original_call, hook->beginning, recodeSize + sizeof(PushRet));
+
+    hook->affectedBytes = relocatedBytes;
+    *original = hook->original_call;
+    _mm_sfence();
+
+    const PushRet jump = makePushRet(handler);
+    const bool status = writeToReadonly(fn, &jump, sizeof(jump));
+    if (!status)
+    {
+        *original = nullptr;
+        return false;
+}
+
+    return true;
+}
+#endif
 
 
 #if _USER_MODE
@@ -2051,6 +2255,17 @@ static void setHook(Arch arch, void* fn, const void* handler, void** original)
         }
     }
 }
+#if LY_ADD
+static void lysetHook(Arch arch, void* fn, const void* handler, void** original)
+{
+    LyHookData* const hookData = (LyHookData*)allocKernel(sizeof(LyHookData));
+    const bool hookStatus = lyapplyHook(arch, hookData, fn, handler, original);
+    if (!hookStatus)
+    {
+        freeKernel(hookData);
+    }
+}
+#endif
 #endif
 
 typedef enum
@@ -2399,8 +2614,6 @@ static void fixupContexts(const ProcInfo* const proc, const HooksUnhooks hooksUn
 }
 #endif // _KERNEL_MODE
 
-
-
 static size_t applyHooks(Arch arch, const Hook* hooks, size_t count)
 {
     size_t hookedCount = 0;
@@ -2422,6 +2635,29 @@ static size_t applyHooks(Arch arch, const Hook* hooks, size_t count)
 
     return hookedCount;
 }
+#if LY_ADD
+static size_t lyapplyHooks(Arch arch, const Hook* hooks, size_t count)
+{
+    size_t hookedCount = 0;
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        const Hook* const hook = &hooks[i];
+        lysetHook(arch, hook->fn, hook->handler, hook->original);
+        if (*hook->original)
+        {
+#if _KERNEL_MODE
+            _mm_clflush(hook->fn);
+#endif
+            ++hookedCount;
+        }
+    }
+
+    _mm_sfence();
+
+    return hookedCount;
+}
+#endif
 
 #if _USER_MODE
 size_t multihook(const Hook* hooks, size_t count)
@@ -2534,6 +2770,26 @@ size_t multihook(const Hook* hooks, size_t count)
         return hookedCount;
     }
 }
+#if LY_ADD
+size_t lymultihook(const Hook* hooks, size_t count)
+{
+    if (!hooks || !count)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        *hooks[i].original = nullptr;
+    }
+
+    beginKernelHookSession();
+    const size_t hookedCount = lyapplyHooks(native, hooks, count);
+    endKernelHookSession();
+
+    return hookedCount;
+}
+#endif
 #endif
 
 void hook(void* fn, const void* handler, void** original)
@@ -2552,6 +2808,24 @@ void hook(void* fn, const void* handler, void** original)
     
     multihook(&hook, 1);
 }
+#if LY_ADD
+void lyhook(void* fn, const void* handler, void** original)
+{
+    if (!fn || !original)
+    {
+        return;
+    }
+
+    const Hook hook =
+    {
+        .fn = fn,
+        .handler = handler,
+        .original = original,
+    };
+
+    lymultihook(&hook, 1);
+}
+#endif
 
 static bool performUnhook(HookData* hook)
 {
@@ -2589,6 +2863,36 @@ static bool performUnhook(HookData* hook)
 
     return true;
 }
+#if LY_ADD
+static bool lyperformUnhook(LyHookData* hook)
+{
+    if (!hook)
+    {
+        return false;
+    }
+
+    const bool writeStatus = writeToReadonly(hook->fn, hook->original_unhook, hook->affectedBytes);
+    if (!writeStatus)
+    {
+        return false;
+    }
+
+    if (isKernelAddress(hook))
+    {
+        freeKernel(hook);
+    }
+    else
+    {
+        HookPage* const page = lyreleaseHookCell(hook);
+        if (isHookPageEmpty(page))
+        {
+            freeHookPage(page);
+        }
+    }
+
+    return true;
+}
+#endif
 
 #if _USER_MODE
 size_t multiunhook(Unhook* originals, size_t count)
@@ -2750,6 +3054,44 @@ size_t multiunhook(Unhook* originals, size_t count)
 
     return unhookedCount;
 }
+#ifdef LY_ADD
+size_t lymultiunhook(Unhook* originals, size_t count)
+{
+    if (!originals || !count)
+    {
+        return 0;
+    }
+
+    size_t unhookedCount = 0;
+
+    beginKernelHookSession();
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (!originals[i].original)
+        {
+            continue;
+        }
+
+        LyHookData* const hook = (LyHookData*)((unsigned char*)originals[i].original - offsetof(LyHookData, original_call));
+        const void* const fn = hook->fn;
+
+        const bool status = lyperformUnhook(hook);
+        if (status)
+        {
+            _mm_clflush(fn);
+            originals[i].original = nullptr;
+            ++unhookedCount;
+        }
+    }
+
+    _mm_sfence();
+
+    endKernelHookSession();
+
+    return unhookedCount;
+}
+#endif
 #endif
 
 size_t unhook(void* original)
@@ -2757,3 +3099,10 @@ size_t unhook(void* original)
     Unhook fn = { .original = original };
     return multiunhook(&fn, 1);
 }
+#if LY_ADD
+size_t lyunhook(void* original)
+{
+    Unhook fn = { .original = original };
+    return lymultiunhook(&fn, 1);
+}
+#endif
