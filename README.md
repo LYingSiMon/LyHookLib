@@ -27,8 +27,13 @@ fffff806`2e0ca347 55              push    rbp
 fffff806`2e0ca348 56              push    rsi
 fffff806`2e0ca349 57              push    rdi
 fffff806`2e0ca34a 4883ec60        sub     rsp,60h
-fffff806`2e0ca34e 488b052b10b6ff  mov     rax,qword ptr [nt!_security_cookie (fffff806`2dc2b380)]        ; support! it will be replaced as: mov rax,0xfffff806`2dc2b380; mov rax,[rax];
+fffff806`2e0ca34e 488b052b10b6ff  mov     rax,qword ptr [nt!_security_cookie (fffff806`2dc2b380)] 
 fffff806`2e0ca355 4833c4          xor     rax,rsp
+
+
+; ok, the instruction "mov     rax,qword ptr [nt!_security_cookie (fffff806`2dc2b380)]" , will be replaced as:
+mov    rax,0xfffff806`2dc2b380
+mov    rax,[rax];
 
 ```
 
