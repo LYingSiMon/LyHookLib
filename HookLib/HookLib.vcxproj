@@ -85,7 +85,7 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug Kernel|x64'" Label="Configuration">
-    <ConfigurationType>Driver</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
@@ -178,6 +178,7 @@
     <IntDir>obj\$(ProjectName)-$(Platform)-$(Configuration)\</IntDir>
     <OutDir>bin\Km\x64\Debug\</OutDir>
     <PublicIncludeDirectories>.\Zydis\dependencies\zycore\include;.\Zydis\include;.\Zydis\msvc;.\HookLib</PublicIncludeDirectories>
+    <TargetExt>.lib</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>

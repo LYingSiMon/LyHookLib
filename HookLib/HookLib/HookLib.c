@@ -808,9 +808,9 @@ typedef struct
 #if LY_ADD
 typedef struct
 {
-    unsigned char beginning[48];
-    unsigned char original_unhook[48];
-    unsigned char original_call[48];
+    unsigned char beginning[100];
+    unsigned char original_unhook[100];
+    unsigned char original_call[100];
     void* fn;
     union
     {
@@ -1831,80 +1831,133 @@ static unsigned char lyrelocateBeginning(Arch arch, const void* from, void* to, 
             const ssize_t direction = delta(srcInstr, destInstr);
             const size_t length = direction >= 0 ? ((size_t)direction) : ((size_t)-direction);
 
-            if (instr.raw.disp.offset)
+            // 0. 指令中存在相对地址
+
+            ZyStatus = ZydisDecoderDecodeOperands(&decoder, &ctx, &instr, operands, instr.operand_count_visible);
+            if (!ZYAN_SUCCESS(ZyStatus))
             {
-                if (!relocatable(instr.raw.disp.size, length))
+                return 0;
+            }
+
+            // 1. mov reg, [address]
+
+            if (instr.mnemonic == ZYDIS_MNEMONIC_MOV)
+            {
+                if (operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER && operands[1].type == ZYDIS_OPERAND_TYPE_MEMORY)
                 {
-                    ZyStatus = ZydisDecoderDecodeOperands(&decoder, &ctx, &instr, operands, instr.operand_count_visible);
-                    if (!ZYAN_SUCCESS(ZyStatus))
+                    // 1.1 删除 void* to 中的指令
+
+                    memset(destInstr, 0, instr.length);
+
+                    // 1.2 修改指令为 mov reg, address; mov reg, [reg]
+
+                    ZyanU8 en_ins1[ZYDIS_MAX_INSTRUCTION_LENGTH];
+                    ZyanUSize en_ins_len1 = sizeof(en_ins1);
+                    ZydisEncoderRequest req1 = { 0 };
+                    req1.mnemonic = ZYDIS_MNEMONIC_MOV;
+                    req1.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+                    req1.operand_count = 2;
+                    req1.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+                    req1.operands[0].reg.value = operands[0].reg.value;
+                    req1.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+                    req1.operands[1].imm.u = (ULONG_PTR)srcInstr + operands[1].mem.disp.value + instr.length;
+                    if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req1, en_ins1, &en_ins_len1)))
                     {
                         return 0;
                     }
 
-                    // 1. 如果是 mov reg, [address]
-
-                    if (instr.mnemonic == ZYDIS_MNEMONIC_MOV)
+                    ZyanU8 en_ins2[ZYDIS_MAX_INSTRUCTION_LENGTH];
+                    ZyanUSize en_ins_len2 = sizeof(en_ins2);
+                    ZydisEncoderRequest req2 = { 0 };
+                    req2.mnemonic = ZYDIS_MNEMONIC_MOV;
+                    req2.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+                    req2.operand_count = 2;
+                    req2.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+                    req2.operands[0].reg.value = operands[0].reg.value;
+                    req2.operands[1].type = ZYDIS_OPERAND_TYPE_MEMORY;
+                    req2.operands[1].mem.base = ZYDIS_REGISTER_RAX;
+                    req2.operands[1].mem.index = ZYDIS_REGISTER_NONE;
+                    req2.operands[1].mem.scale = 0;
+                    req2.operands[1].mem.displacement = 0;
+                    req2.operands[1].mem.size = sizeof(ULONG_PTR);
+                    if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req2, en_ins2, &en_ins_len2)))
                     {
-                        if (operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER && operands[1].type == ZYDIS_OPERAND_TYPE_MEMORY)
-                        {
-                            // 1.1 删除 void* to 中的指令
-
-                            memset(destInstr, 0, instr.length);
-
-                            // 1.2 修改指令为 mov reg, address; mov reg, [reg]
-
-                            ZydisEncoderRequest req1 = { 0 };
-                            req1.mnemonic = ZYDIS_MNEMONIC_MOV;
-                            req1.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
-                            req1.operand_count = 2;
-                            req1.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
-                            req1.operands[0].reg.value = operands[0].reg.value;
-                            req1.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
-                            req1.operands[1].imm.u = (ULONG_PTR)srcInstr + operands[1].mem.disp.value + instr.length;
-
-                            ZyanU8 en_ins1[ZYDIS_MAX_INSTRUCTION_LENGTH];
-                            ZyanUSize en_ins_len1 = sizeof(en_ins1);
-                            if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req1, en_ins1, &en_ins_len1)))
-                            {
-                                return 0;
-                            }
-
-                            ZydisEncoderRequest req2 = { 0 };
-                            req2.mnemonic = ZYDIS_MNEMONIC_MOV;
-                            req2.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
-                            req2.operand_count = 2;
-                            req2.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
-                            req2.operands[0].reg.value = operands[0].reg.value;
-                            req2.operands[1].type = ZYDIS_OPERAND_TYPE_MEMORY;
-                            req2.operands[1].mem.base = ZYDIS_REGISTER_RAX;
-                            req2.operands[1].mem.index = ZYDIS_REGISTER_NONE;
-                            req2.operands[1].mem.scale = 0;
-                            req2.operands[1].mem.displacement = 0;
-                            req2.operands[1].mem.size = sizeof(ULONG_PTR);
-
-                            ZyanU8 en_ins2[ZYDIS_MAX_INSTRUCTION_LENGTH];
-                            ZyanUSize en_ins_len2 = sizeof(en_ins2);
-                            if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req2, en_ins2, &en_ins_len2)))
-                            {
-                                return 0;
-                            }
-
-                            memcpy(destInstr, en_ins1, en_ins_len1);
-                            memcpy(destInstr + en_ins_len1, en_ins2, en_ins_len2);
-
-                            srcInstr += instr.length;
-                            relocatedBytes += instr.length;
-                            *recodeSize += (unsigned char)(en_ins_len1 + en_ins_len2);
-                            if (relocatedBytes >= bytesToRelocate)
-                            {
-                                break;
-                            }
-                            continue;
-                        }
+                        return 0;
                     }
-                }
 
-                relocate(destInstr + instr.raw.disp.offset, direction, instr.raw.disp.size);
+                    memcpy(destInstr, en_ins1, en_ins_len1);
+                    memcpy(destInstr + en_ins_len1, en_ins2, en_ins_len2);
+
+                    srcInstr += instr.length;
+                    relocatedBytes += instr.length;
+                    *recodeSize += (unsigned char)(en_ins_len1 + en_ins_len2);
+                    if (relocatedBytes >= bytesToRelocate)
+                    {
+                        break;
+                    }
+                    continue;
+                }
+            }
+
+            // 2. jcc address
+
+            if (instr.mnemonic == ZYDIS_MNEMONIC_JZ)
+            {
+                // 2.1 删除 void* to 中的指令
+
+                memset(destInstr, 0, instr.length);
+
+                /* 2.2 修改指令如下:
+                * 
+                * +0    74 ??           jcc jmp_y
+                * +2    eb ??           jmp jmp_n                   ; 不满足跳转条件，则执行原本 jcc 下面的指令  
+                * jmp_y:
+                * +4    50              push rax                    ; 满足条件，使用 push-ret 跳转
+                * +5    48 b8 ??*8      mov rax, address  
+                * +f    48 87 04 24     xchg QWORD PTR[rsp], rax
+                * +13   c3              ret
+                * jmp_n:
+                * +14   ??
+                */ 
+
+                ZyanU8 en_ins1[ZYDIS_MAX_INSTRUCTION_LENGTH];
+                ZyanUSize en_ins_len1 = sizeof(en_ins1);
+                ZydisEncoderRequest req1 = { 0 };
+                req1.mnemonic = ZYDIS_MNEMONIC_JZ;
+                req1.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+                req1.operand_count = 1;
+                req1.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+                req1.operands[0].imm.u = ((ULONG_PTR)srcInstr + 0x4) - (ULONG_PTR)srcInstr - 0x2;
+                if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req1, en_ins1, &en_ins_len1)))
+                {
+                    return 0;
+                }
+                memcpy(destInstr, en_ins1, en_ins_len1);
+
+                ZyanU8 en_ins2[ZYDIS_MAX_INSTRUCTION_LENGTH];
+                ZyanUSize en_ins_len2 = sizeof(en_ins2);
+                ZydisEncoderRequest req2 = { 0 };
+                req2.mnemonic = ZYDIS_MNEMONIC_JMP;
+                req2.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+                req2.operand_count = 1;
+                req2.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+                req2.operands[0].imm.u = ((ULONG_PTR)srcInstr + 0x14) - ((ULONG_PTR)srcInstr + en_ins_len1) - 2;
+                if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req2, en_ins2, &en_ins_len2)))
+                {
+                    return 0;
+                }
+                memcpy(destInstr + 2, en_ins2, en_ins_len2);
+
+                *(PushRet*)(destInstr + 4) = makePushRet((PVOID)((ULONG_PTR)srcInstr + operands[0].imm.value.u + instr.length));
+
+                srcInstr += instr.length;
+                relocatedBytes += instr.length;
+                *recodeSize += (unsigned char)0x14;
+                if (relocatedBytes >= bytesToRelocate)
+                {
+                    break;
+                }
+                continue;
             }
 
             for (unsigned char i = 0; i < 2; ++i)
@@ -2136,7 +2189,7 @@ static bool applyHook(const Arch arch, HookData* const hook, void* const fn, con
 #if LY_ADD
 static bool lyapplyHook(const Arch arch, LyHookData* const hook, void* const fn, const void* const handler, void** original)
 {
-    __debugbreak();
+    //__debugbreak();
 
     if (!hook || !fn || !original)
     {
