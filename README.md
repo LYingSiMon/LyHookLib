@@ -51,16 +51,16 @@ fffff805`630ff849 5d              pop     rbp
 
 ; je nt!KeYieldExecution+0x1b (fffff805`630ff84b) , will be replaced as:
 ; ------------------
-;     je jmp_y
-;     jmp jmp_n
+; je jmp_y
+; jmp jmp_n
 ; jmp_y:
-;	  push rax
-;	  mov rax, fffff805`630ff84b
-;	  xchg QWORD PTR[rsp], rax
-;	  ret
+; push rax
+; mov rax, fffff805`630ff84b
+; xchg QWORD PTR[rsp], rax
+; ret
 ; jmp_n:
-;	  mov     eax,0C000000Dh
-;	  add     rsp,40h
-;	  pop     rbp
+; mov     eax,0C000000Dh
+; add     rsp,40h
+; pop     rbp
 ```
 
