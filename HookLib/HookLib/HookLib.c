@@ -1,23 +1,23 @@
 #include "HookLib.h"
 
 #if _KERNEL_MODE
-    #include <ntifs.h>
+#include <ntifs.h>
 #ifdef _AMD64_
-    #include <minwindef.h>
+#include <minwindef.h>
 #endif
-    #include <intrin.h>
+#include <intrin.h>
 #else
-    #define _USER_MODE 1
+#define _USER_MODE 1
 
-    #define WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 
-    #define WIN32_NO_STATUS
-    #include <windows.h>
-    #undef WIN32_NO_STATUS
+#define WIN32_NO_STATUS
+#include <windows.h>
+#undef WIN32_NO_STATUS
 
-    #include <winternl.h>
-    
-    #pragma comment(lib, "ntdll.lib")
+#include <winternl.h>
+
+#pragma comment(lib, "ntdll.lib")
 #endif
 
 #include <ntstatus.h>
@@ -29,35 +29,35 @@
 #pragma warning(pop)
 
 #if !defined offsetof
-    #define offsetof(s, m) ((size_t)&(((s*)0)->m))
+#define offsetof(s, m) ((size_t)&(((s*)0)->m))
 #endif
 
 #if _USER_MODE
-    #define NtCurrentProcess() ((HANDLE)-1)
-    #define NtCurrentThread()  ((HANDLE)-2)
+#define NtCurrentProcess() ((HANDLE)-1)
+#define NtCurrentThread()  ((HANDLE)-2)
 
-    #ifdef _AMD64_
-        #define teb() ((const void*)__readgsqword(0x30))
-        #define peb() ((const void*)__readgsqword(0x60))
-        #define pid() (*(const unsigned int*)((const unsigned char*)teb() + 0x40)) /* TEB::ClientId.UniqueProcessId */
-        #define tid() (*(const unsigned int*)((const unsigned char*)teb() + 0x48)) /* TEB::ClientId.UniqueThreadId */
-    #else
-        #define teb() ((const void*)__readfsdword(0x18))
-        #define peb() ((const void*)__readfsdword(0x30))
-        #define pid() (*(const unsigned int*)((const unsigned char*)teb() + 0x20)) /* TEB::ClientId.UniqueProcessId */
-        #define tid() (*(const unsigned int*)((const unsigned char*)teb() + 0x24)) /* TEB::ClientId.UniqueThreadId */
-    #endif
+#ifdef _AMD64_
+#define teb() ((const void*)__readgsqword(0x30))
+#define peb() ((const void*)__readgsqword(0x60))
+#define pid() (*(const unsigned int*)((const unsigned char*)teb() + 0x40)) /* TEB::ClientId.UniqueProcessId */
+#define tid() (*(const unsigned int*)((const unsigned char*)teb() + 0x48)) /* TEB::ClientId.UniqueThreadId */
+#else
+#define teb() ((const void*)__readfsdword(0x18))
+#define peb() ((const void*)__readfsdword(0x30))
+#define pid() (*(const unsigned int*)((const unsigned char*)teb() + 0x20)) /* TEB::ClientId.UniqueProcessId */
+#define tid() (*(const unsigned int*)((const unsigned char*)teb() + 0x24)) /* TEB::ClientId.UniqueThreadId */
+#endif
 #endif
 
 #if _KERNEL_MODE
-    #define pid() (unsigned int)(size_t)PsGetCurrentProcessId()
-    #define tid() (unsigned int)(size_t)PsGetCurrentThreadId()
+#define pid() (unsigned int)(size_t)PsGetCurrentProcessId()
+#define tid() (unsigned int)(size_t)PsGetCurrentThreadId()
 #endif
 
 #ifdef _AMD64_
-    typedef long long ssize_t;
+typedef long long ssize_t;
 #else
-    typedef long ssize_t;
+typedef long ssize_t;
 #endif
 
 typedef unsigned char bool;
@@ -140,24 +140,24 @@ typedef struct
 } WRK_SYSTEM_PROCESS_INFORMATION;
 
 #if _USER_MODE
-    typedef enum
-    {
-        MemoryBasicInformation
-    } MEMORY_INFORMATION_CLASS;
+typedef enum
+{
+    MemoryBasicInformation
+} MEMORY_INFORMATION_CLASS;
 #elif _KERNEL_MODE
-    typedef enum _SYSTEM_INFORMATION_CLASS {
-        SystemBasicInformation = 0,
-        SystemPerformanceInformation = 2,
-        SystemTimeOfDayInformation = 3,
-        SystemProcessInformation = 5,
-        SystemProcessorPerformanceInformation = 8,
-        SystemInterruptInformation = 23,
-        SystemExceptionInformation = 33,
-        SystemRegistryQuotaInformation = 37,
-        SystemLookasideInformation = 45,
-        SystemCodeIntegrityInformation = 103,
-        SystemPolicyInformation = 134,
-    } SYSTEM_INFORMATION_CLASS;
+typedef enum _SYSTEM_INFORMATION_CLASS {
+    SystemBasicInformation = 0,
+    SystemPerformanceInformation = 2,
+    SystemTimeOfDayInformation = 3,
+    SystemProcessInformation = 5,
+    SystemProcessorPerformanceInformation = 8,
+    SystemInterruptInformation = 23,
+    SystemExceptionInformation = 33,
+    SystemRegistryQuotaInformation = 37,
+    SystemLookasideInformation = 45,
+    SystemCodeIntegrityInformation = 103,
+    SystemPolicyInformation = 134,
+} SYSTEM_INFORMATION_CLASS;
 #endif // _KERNEL_MODE
 
 NTSYSAPI NTSTATUS NTAPI ZwQuerySystemInformation(
@@ -207,7 +207,7 @@ typedef NTSTATUS (NTAPI* FnZwProtectVirtualMemory)(
     IN OUT PSIZE_T numberOfBytes,
     IN ULONG newProt,
     OUT PULONG oldProt
-);
+    );
 #endif
 
 
@@ -221,47 +221,47 @@ NTSYSAPI NTSTATUS NTAPI ZwOpenThread(
 NTSYSAPI NTSTATUS NTAPI ZwYieldExecution();
 
 #if _USER_MODE
-    NTSYSAPI NTSTATUS NTAPI ZwSuspendThread(
-        IN HANDLE hThread,
-        OUT OPTIONAL PULONG previousSuspendCount
-    );
+NTSYSAPI NTSTATUS NTAPI ZwSuspendThread(
+    IN HANDLE hThread,
+    OUT OPTIONAL PULONG previousSuspendCount
+);
 
-    NTSYSAPI NTSTATUS NTAPI ZwResumeThread(
-        IN HANDLE hThread,
-        OUT OPTIONAL PULONG suspendCount
-    );
+NTSYSAPI NTSTATUS NTAPI ZwResumeThread(
+    IN HANDLE hThread,
+    OUT OPTIONAL PULONG suspendCount
+);
 
-    NTSYSAPI NTSTATUS NTAPI ZwGetContextThread(
-        IN HANDLE hThread,
-        OUT PCONTEXT ctx
-    );
+NTSYSAPI NTSTATUS NTAPI ZwGetContextThread(
+    IN HANDLE hThread,
+    OUT PCONTEXT ctx
+);
 
-    NTSYSAPI NTSTATUS NTAPI ZwSetContextThread(
-        IN HANDLE hThread,
-        IN PCONTEXT ctx
-    );
+NTSYSAPI NTSTATUS NTAPI ZwSetContextThread(
+    IN HANDLE hThread,
+    IN PCONTEXT ctx
+);
 #endif
 
 #if _KERNEL_MODE
 #ifdef _AMD64_
-    NTSYSAPI NTSTATUS NTAPI ZwQueryInformationThread(
-        _In_ HANDLE hThread,
-        _In_ THREADINFOCLASS info,
-        _In_ PVOID buf,
-        _In_ ULONG size,
-        _Out_opt_ PULONG returned
-    );
+NTSYSAPI NTSTATUS NTAPI ZwQueryInformationThread(
+    _In_ HANDLE hThread,
+    _In_ THREADINFOCLASS info,
+    _In_ PVOID buf,
+    _In_ ULONG size,
+    _Out_opt_ PULONG returned
+);
 
-    NTSYSAPI const void* NTAPI PsGetProcessWow64Process(PEPROCESS process);
+NTSYSAPI const void* NTAPI PsGetProcessWow64Process(PEPROCESS process);
 #endif
 
-    NTSYSAPI BOOLEAN NTAPI KeIsAttachedProcess();
-    NTSYSAPI NTSTATUS NTAPI PsSuspendProcess(PEPROCESS process);
-    NTSYSAPI NTSTATUS NTAPI PsResumeProcess(PEPROCESS process);
-    NTSYSAPI NTSTATUS NTAPI PsGetContextThread(_In_ PETHREAD thread, _Inout_ PCONTEXT ctx, _In_ KPROCESSOR_MODE mode);
-    NTSYSAPI NTSTATUS NTAPI PsSetContextThread(_In_ PETHREAD thread, _Inout_ PCONTEXT ctx, _In_ KPROCESSOR_MODE mode);
-    typedef NTSTATUS (NTAPI* FnPspGetContextThreadInternal)(_In_ PETHREAD thread, _Inout_ PCONTEXT ctx, _In_ KPROCESSOR_MODE contextDisposition, _In_ KPROCESSOR_MODE queryContextForPart, _In_ BOOLEAN unwindStack);
-    typedef NTSTATUS (NTAPI* FnPspSetContextThreadInternal)(_In_ PETHREAD thread, _Inout_ PCONTEXT ctx, _In_ KPROCESSOR_MODE contextDisposition, _In_ KPROCESSOR_MODE setContextForPart, _In_ BOOLEAN unwindStack);
+NTSYSAPI BOOLEAN NTAPI KeIsAttachedProcess();
+NTSYSAPI NTSTATUS NTAPI PsSuspendProcess(PEPROCESS process);
+NTSYSAPI NTSTATUS NTAPI PsResumeProcess(PEPROCESS process);
+NTSYSAPI NTSTATUS NTAPI PsGetContextThread(_In_ PETHREAD thread, _Inout_ PCONTEXT ctx, _In_ KPROCESSOR_MODE mode);
+NTSYSAPI NTSTATUS NTAPI PsSetContextThread(_In_ PETHREAD thread, _Inout_ PCONTEXT ctx, _In_ KPROCESSOR_MODE mode);
+typedef NTSTATUS (NTAPI* FnPspGetContextThreadInternal)(_In_ PETHREAD thread, _Inout_ PCONTEXT ctx, _In_ KPROCESSOR_MODE contextDisposition, _In_ KPROCESSOR_MODE queryContextForPart, _In_ BOOLEAN unwindStack);
+typedef NTSTATUS (NTAPI* FnPspSetContextThreadInternal)(_In_ PETHREAD thread, _Inout_ PCONTEXT ctx, _In_ KPROCESSOR_MODE contextDisposition, _In_ KPROCESSOR_MODE setContextForPart, _In_ BOOLEAN unwindStack);
 #endif
 
 NTSYSAPI NTSTATUS NTAPI ZwFlushInstructionCache(
@@ -271,59 +271,59 @@ NTSYSAPI NTSTATUS NTAPI ZwFlushInstructionCache(
 );
 
 #if _USER_MODE
-    NTSYSAPI NTSTATUS NTAPI ZwClose(HANDLE handle);
+NTSYSAPI NTSTATUS NTAPI ZwClose(HANDLE handle);
 
-    NTSYSAPI NTSTATUS NTAPI LdrGetDllHandle(
-        IN OPTIONAL PWORD path,
-        IN OPTIONAL PVOID unused,
-        IN PUNICODE_STRING moduleFileName,
-        OUT PHANDLE hModule
-    );
+NTSYSAPI NTSTATUS NTAPI LdrGetDllHandle(
+    IN OPTIONAL PWORD path,
+    IN OPTIONAL PVOID unused,
+    IN PUNICODE_STRING moduleFileName,
+    OUT PHANDLE hModule
+);
 
-    NTSYSAPI NTSTATUS NTAPI LdrGetProcedureAddress(
-        IN HMODULE hModule,
-        IN OPTIONAL PANSI_STRING funcName,
-        IN OPTIONAL WORD ordinal,
-        OUT PVOID* funcAddress
-    );
+NTSYSAPI NTSTATUS NTAPI LdrGetProcedureAddress(
+    IN HMODULE hModule,
+    IN OPTIONAL PANSI_STRING funcName,
+    IN OPTIONAL WORD ordinal,
+    OUT PVOID* funcAddress
+);
 
-    void* lookupModule(const wchar_t* modName)
+void* lookupModule(const wchar_t* modName)
+{
+    if (!modName)
     {
-        if (!modName)
-        {
-            return nullptr;
-        }
-
-        UNICODE_STRING name;
-        RtlInitUnicodeString(&name, modName);
-        HMODULE hModule = nullptr;
-        const NTSTATUS status = LdrGetDllHandle(nullptr, nullptr, &name, &hModule);
-        if (!NT_SUCCESS(status))
-        {
-            return nullptr;
-        }
-
-        return hModule;
+        return nullptr;
     }
 
-    void* lookupFunction(const void* hModule, const char* funcName)
+    UNICODE_STRING name;
+    RtlInitUnicodeString(&name, modName);
+    HMODULE hModule = nullptr;
+    const NTSTATUS status = LdrGetDllHandle(nullptr, nullptr, &name, &hModule);
+    if (!NT_SUCCESS(status))
     {
-        if (!hModule || !funcName)
-        {
-            return nullptr;
-        }
-
-        void* addr = nullptr;
-        ANSI_STRING name;
-        RtlInitAnsiString(&name, funcName);
-        const NTSTATUS status = LdrGetProcedureAddress((HMODULE)hModule, &name, 0, &addr);
-        if (!NT_SUCCESS(status))
-        {
-            return nullptr;
-        }
-
-        return addr;
+        return nullptr;
     }
+
+    return hModule;
+}
+
+void* lookupFunction(const void* hModule, const char* funcName)
+{
+    if (!hModule || !funcName)
+    {
+        return nullptr;
+    }
+
+    void* addr = nullptr;
+    ANSI_STRING name;
+    RtlInitAnsiString(&name, funcName);
+    const NTSTATUS status = LdrGetProcedureAddress((HMODULE)hModule, &name, 0, &addr);
+    if (!NT_SUCCESS(status))
+    {
+        return nullptr;
+    }
+
+    return addr;
+}
 #endif
 
 #if _KERNEL_MODE
@@ -482,7 +482,7 @@ static FnZwProtectVirtualMemory findVirtualProtect()
     }
     }
 
-    #pragma pack(push, 1)
+#pragma pack(push, 1)
     typedef union
     {
         unsigned char raw[32]; // With alignment
@@ -503,9 +503,9 @@ static FnZwProtectVirtualMemory findVirtualProtect()
             unsigned int KiServiceLinkageOffset; // NN NN NN NN  | -+-> jmp KiServiceLinkage
         } layout;
     } ZwStubLayout64;
-    #pragma pack(pop)
+#pragma pack(pop)
 
-    #pragma pack(push, 1)
+#pragma pack(push, 1)
     typedef union
     {
         unsigned char raw[20];
@@ -520,7 +520,7 @@ static FnZwProtectVirtualMemory findVirtualProtect()
             unsigned char retn8;          // C2 08 00     | retn 8
         } layout;
     } ZwStubLayout32;
-    #pragma pack(pop)
+#pragma pack(pop)
 
 #ifdef _AMD64_
     typedef ZwStubLayout64 ZwStubLayout;
@@ -938,7 +938,7 @@ static void freeHookPage(HookPage* const page)
     }
 
     unlinkHookPage(page);
-    
+
     freeUser(page);
 }
 
@@ -1282,16 +1282,16 @@ static ContextFunctions lookupContextFunctions()
           +21/24:   retn                                    | C3
     */
 
-    #pragma pack(push, 1)
+#pragma pack(push, 1)
     typedef struct
     {
         unsigned int subRsp38h;
         unsigned char movR9bR8b[3];
         unsigned char movOpcode;
     } LayoutGeneric;
-    #pragma pack(pop)
+#pragma pack(pop)
 
-    #pragma pack(push, 1)
+#pragma pack(push, 1)
     typedef struct
     {
         unsigned int subRsp38h;
@@ -1302,9 +1302,9 @@ static ContextFunctions lookupContextFunctions()
         unsigned int addRsp38h;
         unsigned char retn;
     } LayoutMovb;
-    #pragma pack(pop)
+#pragma pack(pop)
 
-    #pragma pack(push, 1)
+#pragma pack(push, 1)
     typedef struct
     {
         unsigned int subRsp38h;
@@ -1315,7 +1315,7 @@ static ContextFunctions lookupContextFunctions()
         unsigned int addRsp38h;
         unsigned char retn;
     } LayoutMovl;
-    #pragma pack(pop)
+#pragma pack(pop)
 #else
     /*
         Ps[Get/Set]ContextThread(PETHREAD:[esp+4], CONTEXT*:[esp+8], KPROCESSOR_MODE:[esp+12]):
@@ -1332,7 +1332,7 @@ static ContextFunctions lookupContextFunctions()
           +25:   retn 0Ch                                | C2 0C 00
     */
 
-    #pragma pack(push, 1)
+#pragma pack(push, 1)
     typedef struct
     {
         unsigned short movEdiEdi;
@@ -1349,7 +1349,7 @@ static ContextFunctions lookupContextFunctions()
         unsigned char retn;
         unsigned short argsSize;
     } Layout;
-    #pragma pack(pop)
+#pragma pack(pop)
 #endif
 
     const unsigned char k_callOpcode = 0xE8;
@@ -1357,7 +1357,7 @@ static ContextFunctions lookupContextFunctions()
 #ifdef _AMD64_
     const LayoutGeneric* const getLayoutGeneric = (const LayoutGeneric*)PsGetContextThread;
     const LayoutGeneric* const setLayoutGeneric = (const LayoutGeneric*)PsSetContextThread;
-    
+
     const unsigned char k_movbOpcode = 0xC6;
     const unsigned char k_movlOpcode = 0xC7;
 
@@ -1395,7 +1395,7 @@ static ContextFunctions lookupContextFunctions()
         const ContextFunctions functions = { .get = nullptr, .set = nullptr };
         return functions;
     }
-    
+
 #else
     const Layout* const getLayout = (const Layout*)PsGetContextThread;
     const Layout* const setLayout = (const Layout*)PsSetContextThread;
@@ -1436,7 +1436,7 @@ static TerminatingFlag parseThreadTerminatingFlag()
           +08:   retn                   | C3
     */
 
-    #pragma pack(push, 1)
+#pragma pack(push, 1)
     typedef struct
     {
         unsigned short movEaxOpcode;
@@ -1445,7 +1445,7 @@ static TerminatingFlag parseThreadTerminatingFlag()
         unsigned char value;
         unsigned char retn;
     } Layout;
-    #pragma pack(pop)
+#pragma pack(pop)
 
     const unsigned short k_movEaxOffsetOpcode = 0x818B;
     const unsigned char k_retnOpcode = 0xC3;
@@ -1463,7 +1463,7 @@ static TerminatingFlag parseThreadTerminatingFlag()
           +17:   retn 4                   | C2 04 00
     */
 
-    #pragma pack(push, 1)
+#pragma pack(push, 1)
     typedef struct
     {
         unsigned char beginning[8];
@@ -1475,7 +1475,7 @@ static TerminatingFlag parseThreadTerminatingFlag()
         unsigned char retn;
         unsigned short argsSize;
     } Layout;
-    #pragma pack(pop)
+#pragma pack(pop)
 
     const unsigned short k_movEaxOffsetOpcode = 0x808B;
     const unsigned char k_retnOpcode = 0xC2;
@@ -1676,7 +1676,7 @@ static void* findPageForRelativeJump(const void* addr)
         }
 
         base = ((unsigned char*)info.BaseAddress) - 1;
-        
+
         if (!relativeJumpable(base, addr))
         {
             break;
@@ -1901,29 +1901,29 @@ static unsigned char lyrelocateBeginning(Arch arch, const void* from, void* to, 
 
             // 2. jcc address
 
-            if (instr.mnemonic == ZYDIS_MNEMONIC_JZ)
+            if (instr.mnemonic >= ZYDIS_MNEMONIC_JB && instr.mnemonic <= ZYDIS_MNEMONIC_JZ && instr.mnemonic != ZYDIS_MNEMONIC_JMP)
             {
                 // 2.1 删除 void* to 中的指令
 
                 memset(destInstr, 0, instr.length);
 
                 /* 2.2 修改指令如下:
-                * 
+                *
                 * +0    74 ??           jcc jmp_y
-                * +2    eb ??           jmp jmp_n                   ; 不满足跳转条件，则执行原本 jcc 下面的指令  
+                * +2    eb ??           jmp jmp_n                   ; 不满足跳转条件，则执行原本 jcc 下面的指令
                 * jmp_y:
                 * +4    50              push rax                    ; 满足条件，使用 push-ret 跳转
-                * +5    48 b8 ??*8      mov rax, address  
+                * +5    48 b8 ??*8      mov rax, address
                 * +f    48 87 04 24     xchg QWORD PTR[rsp], rax
                 * +13   c3              ret
                 * jmp_n:
                 * +14   ??
-                */ 
+                */
 
                 ZyanU8 en_ins1[ZYDIS_MAX_INSTRUCTION_LENGTH];
                 ZyanUSize en_ins_len1 = sizeof(en_ins1);
                 ZydisEncoderRequest req1 = { 0 };
-                req1.mnemonic = ZYDIS_MNEMONIC_JZ;
+                req1.mnemonic = instr.mnemonic;
                 req1.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
                 req1.operand_count = 1;
                 req1.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
@@ -1953,6 +1953,61 @@ static unsigned char lyrelocateBeginning(Arch arch, const void* from, void* to, 
                 srcInstr += instr.length;
                 relocatedBytes += instr.length;
                 *recodeSize += (unsigned char)0x14;
+                if (relocatedBytes >= bytesToRelocate)
+                {
+                    break;
+                }
+                continue;
+            }
+
+            // 3. call qword ptr [rip + offset]
+
+            if (instr.mnemonic == ZYDIS_MNEMONIC_CALL && operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY)
+            {
+                // 3.1 删除 void* to 中的指令
+
+                memset(destInstr, 0, instr.length);
+
+                // 3.2 修改指令为 mov reg, address; call [reg]
+
+                ZyanU8 en_ins1[ZYDIS_MAX_INSTRUCTION_LENGTH];
+                ZyanUSize en_ins_len1 = sizeof(en_ins1);
+                ZydisEncoderRequest req1 = { 0 };
+                req1.mnemonic = ZYDIS_MNEMONIC_MOV;
+                req1.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+                req1.operand_count = 2;
+                req1.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+                req1.operands[0].reg.value = ZYDIS_REGISTER_RAX;
+                req1.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+                req1.operands[1].imm.u = (ULONG_PTR)srcInstr + operands[0].mem.disp.value + instr.length;
+
+                if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req1, en_ins1, &en_ins_len1)))
+                {
+                    return 0;
+                }
+
+                ZyanU8 en_ins2[ZYDIS_MAX_INSTRUCTION_LENGTH];
+                ZyanUSize en_ins_len2 = sizeof(en_ins2);
+                ZydisEncoderRequest req2 = { 0 };
+                req2.mnemonic = ZYDIS_MNEMONIC_CALL;
+                req2.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+                req2.operand_count = 1;
+                req2.operands[0].type = ZYDIS_OPERAND_TYPE_MEMORY;
+                req2.operands[0].mem.base = ZYDIS_REGISTER_RAX;
+                req2.operands[0].mem.index = ZYDIS_REGISTER_NONE;
+                req2.operands[0].mem.scale = 0;
+                req2.operands[0].mem.size = sizeof(ULONG_PTR);
+                if (!ZYAN_SUCCESS(ZydisEncoderEncodeInstruction(&req2, en_ins2, &en_ins_len2)))
+                {
+                    return 0;
+                }
+
+                memcpy(destInstr, en_ins1, en_ins_len1);
+                memcpy(destInstr + en_ins_len1, en_ins2, en_ins_len2);
+
+                srcInstr += instr.length;
+                relocatedBytes += instr.length;
+                *recodeSize += (unsigned char)(en_ins_len1 + en_ins_len2);
                 if (relocatedBytes >= bytesToRelocate)
                 {
                     break;
@@ -2221,7 +2276,7 @@ static bool lyapplyHook(const Arch arch, LyHookData* const hook, void* const fn,
     {
         *original = nullptr;
         return false;
-}
+    }
 
     return true;
 }
@@ -2250,7 +2305,7 @@ static void setHook(Arch arch, void* fn, const void* handler, void** original)
     {
         return;
     }
-    
+
     HookData* const freeHookCell = claimHookCell(newPage);
     const bool hookStatus = applyHook(arch, freeHookCell, fn, handler, original);
     if (!hookStatus)
@@ -2858,7 +2913,7 @@ void hook(void* fn, const void* handler, void** original)
         .handler = handler,
         .original = original
     };
-    
+
     multihook(&hook, 1);
 }
 #if LY_ADD
@@ -2976,7 +3031,7 @@ size_t multiunhook(Unhook* originals, size_t count)
     }
 
     size_t unhookedCount = 0;
-   
+
     const HooksUnhooks hooksUnhooks = { .unhooks = originals };
     fixupContexts(currentProcess, hooksUnhooks, count, fixForUnhook);
 
